@@ -1,0 +1,4 @@
+python=3.9
+scikit-learn==1.2.2
+scikit-survival==0.21
+matplotlib==3.7.1
