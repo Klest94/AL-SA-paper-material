@@ -1,8 +1,8 @@
 # AL-SA-paper-material
-reproducibility results for IAL2023 conference
+reproducibility results for IAL2023 conference paper, excited to share our findings and discusse more ideas!
 
-# Upcmoing soon!
-A detailed giude on how to effectively run this messy code.
+# Upcoming soon!
+A detailed giude on how to run this messy code.
 
 # How to run
 
