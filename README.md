@@ -1,5 +1,5 @@
 # AL-SA-paper-material
-reproducibility results for IAL2023 conference paper, excited to share our findings and discusse more ideas!
+reproducibility results for [IAL2023 conference](https://www.activeml.net/ial2023/) paper, we are excited to share our findings and discusse more ideas!
 
 # Upcoming soon!
 A detailed giude on how to run this messy code.
