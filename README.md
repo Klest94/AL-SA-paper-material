@@ -1,8 +1,8 @@
 # AL-SA-paper-material
-reproducibility results for [IAL2023 conference](https://www.activeml.net/ial2023/) paper, we are excited to share our findings and discusse more ideas!
+reproducibility results for [IAL2023 workshop](https://www.activeml.net/ial2023/) paper, we are excited to share our findings and discusse more ideas!
 
 # Upcoming soon!
-A detailed giude on how to run this messy code.
+A detailed guide on how to run this messy code.
 
 # How to run
 
@@ -11,8 +11,9 @@ Step 0: make sure you have a Python environment with basic libraries. Check ``re
 Step 1: generate raw data with ``data_import.py`` importing from the SurvSet library is needed.
 Use the ``pip install SurvSet==0.2.6`` command to install the same version of the library.
 
-Step 2: generate final version of the datasets with the ``process_and_folds.py`` script.
-This will also prepare 5-fold cross validation and impute missing values (do we? double check): the RSF model 
+Step 2: process the datasets with the ``process_and_folds.py`` script to get a 'clean' version of the data.
+This also sets-up a 5-fold cross validation and imputes missing values (do we? double check claim).
+Imputation is necessary since the underlying RSF model 
 (as for ``scikit-survival==0.21``) cannot handle missing values. 
 
 Step 3: Select relevant datasets for the analysis (see paper for more details), use the ``filter_datasets.py`` script for the task.
