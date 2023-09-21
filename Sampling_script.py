@@ -473,7 +473,84 @@ class ActiveLearning(BaseActiveLearning): #sampling strategy, update train and p
 
         return X_pool.iloc[query_index], z_pool[query_index], query_index    
     
+    
+    def info_density_sampling(self,
+                              X_train,
+                              z_train,
+                          X_pool: pd.DataFrame,
+                          z_pool: np.ndarray,
+                          clf_density,
+                          info_measure,
+                          conditional:bool=True,
+                          beta: float=1.0) -> tuple[pd.DataFrame, pd.Series]:
+        
+        clf = self.model.fit(X_train, z_train)
+        # The lower the score_samples, the more abnormal -> the higher the more 'normal'
+        normality_score = clf_density.score_samples(X_pool)
+        min_val = normality_score.min()
+        max_val = normality_score.max()
+        # normality score to abnormality in the [0,1] interval (reversed mapping)
+        abnormality_score = 1 - ((normality_score - min_val) / np.maximum((max_val - min_val), 1e-8))
+        
+        if info_measure == "variance":
+                                
+            if conditional:
+                tree_preds = [clf[i].conditional_predict(X_pool.values, z_pool) 
+                              for i in range(clf.n_estimators)]
+            elif conditional == False: #if self.conditional is False
+                tree_preds = [clf[i].predict(X_pool.values) 
+                              for i in range(clf.n_estimators)]
+            else:
+                raise ValueError("\'conditional\' parameter not found")
+                
+            train_pop_ranks = np.sort(np.array(clf.predict(X_train)))
 
+            # Count instances in train_pop_ranks that are lower or equal to each element in tree_preds
+            tree_ranks = np.searchsorted(train_pop_ranks, tree_preds, side='right')
+            base_inform =  tree_ranks.std(0)
+            
+                
+        elif info_measure == "uncertainty": #WARNING: argmax is taken in this case
+            
+            pop_avg = clf.predict(X_train).mean()
+
+            if conditional:
+                base_inform = (-1)*np.abs(clf.conditional_predict(X_pool, z_pool) - pop_avg) 
+            else: #if self.conditional is False
+                # the closer to average, the higher the base inform (negative number closer to zero)
+                base_inform = (-1)*np.abs(clf.predict(X_pool) - pop_avg)
+        
+        # base infom is a 'score' in 'the higher the better' format.
+        
+        # regardless of the base_inform measure, normalise it so that the
+        # beta parameter has a meaningful and controllable influence
+        # we ensure that density and informativeness has comparable scales
+        
+        min_val = base_inform.min()
+        max_val = base_inform.max()
+        # normality score in [0,1] interval
+        base_inform = (base_inform - min_val) / np.maximum((max_val - min_val), 1e-8)
+        
+        # we compute the log of the Equation in page 5 from Settles and Craven
+        # An Analysis of Active Learning Strategies for Sequence Labeling Tasks (2008)
+        # The only difference being that we privilege abnormality instead
+        log_info_density = base_inform + beta*abnormality_score
+        
+        #argsort (reversed) and take top (highest) elements, output will be list 
+        query_index = np.argsort(log_info_density)[::-1][:self.batch_size]
+        
+        if self.verbose > 3:
+            print('sampled ilocs:', query_index)
+            print('with info-density: {:.4f}'.format(log_info_density[query_index]))
+            if self.verbose > 4:
+                print('Made of {:.4f}, {:.4f}:'.format(base_inform[query_index],
+                                                       abnormality_score[query_index]))
+
+        
+        return X_pool.iloc[query_index], z_pool[query_index], query_index
+    
+    
+    
     def info_risk_sampling(self,
                             X_train,
                             z_train,
@@ -542,75 +619,6 @@ class ActiveLearning(BaseActiveLearning): #sampling strategy, update train and p
     
     
     
-    def info_density_sampling(self,
-                              X_train,
-                              z_train,
-                          X_pool: pd.DataFrame,
-                          z_pool: np.ndarray,
-                          clf_density,
-                          info_measure,
-                          conditional:bool=True,
-                          beta: float=1.0) -> tuple[pd.DataFrame, pd.Series]:
-        
-        clf = self.model.fit(X_train, z_train)
-        normality_score = clf_density.score_samples(X_pool)
-        min_val = normality_score.min()
-        max_val = normality_score.max()
-        # normality score to abnormality in the [0,1] interval (reversed mapping)
-        abnormality_score = 1 - ((normality_score - min_val) / np.maximum((max_val - min_val), 1e-8))
-        
-        if info_measure == "variance":
-                                
-            if conditional:
-                tree_preds = [clf[i].conditional_predict(X_pool.values, z_pool) 
-                              for i in range(clf.n_estimators)]
-            elif conditional == False: #if self.conditional is False
-                tree_preds = [clf[i].predict(X_pool.values) 
-                              for i in range(clf.n_estimators)]
-            else:
-                raise ValueError("\'conditional\' parameter not found")
-                
-            train_pop_ranks = np.sort(np.array(clf.predict(X_train)))
-
-            # Count instances in train_pop_ranks that are lower or equal to each element in tree_preds
-            tree_ranks = np.searchsorted(train_pop_ranks, tree_preds, side='right')
-            base_inform =  tree_ranks.std(0)
-            
-                
-        elif info_measure == "uncertainty":
-            
-            pop_avg = clf.predict(X_train).mean()
-
-            if conditional:
-                base_inform = np.abs(clf.conditional_predict(X_pool, z_pool) - pop_avg) 
-            else: #if self.conditional is False
-                base_inform = np.abs(clf.predict(X_pool) - pop_avg)
-            
-        # regardless of the base_inform measure, normalise it so that the
-        # beta parameter has a meaningful adn controllable influence
-        # we ensure that density and informativeness has comparable scales
-        
-        min_val = base_inform.min()
-        max_val = base_inform.max()
-        # normality score in [0,1] interval
-        base_inform = (base_inform - min_val) / np.maximum((max_val - min_val), 1e-8)
-        
-        # we compute the log of the Equation in page 5 from Settles and Craven
-        # An Analysis of Active Learning Strategies for Sequence Labeling Tasks (2008)
-        log_info_density = base_inform + beta*abnormality_score
-        
-        #argsort (reversed) and take top (highest) elements, output will be list 
-        query_index = np.argsort(log_info_density)[::-1][:self.batch_size]
-        
-        if self.verbose > 3:
-            print('sampled ilocs:', query_index)
-            print('with info-density:', log_info_density[query_index])
-        
-        
-        return X_pool.iloc[query_index], z_pool[query_index], query_index
-    
-    
-    
     def info_risk_density_sampling(self,
                                    X_train,
                                    z_train,
@@ -625,6 +633,7 @@ class ActiveLearning(BaseActiveLearning): #sampling strategy, update train and p
         clf = self.model.fit(X_train, z_train)
         
         normality_score = clf_density.score_samples(X_pool)
+        # the lower the score_samples, the more abnormal. 
         min_val = normality_score.min()
         max_val = normality_score.max()
         # normality score to abnormality in the [0,1] interval (reversed mapping)
